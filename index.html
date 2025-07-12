@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- MODIFIED VIEWPORT META TAG -->
+    <!-- This tells the browser to render the page at a fixed width of 950px,
+         regardless of the device's actual width. This will prevent automatic
+         resizing and may introduce horizontal scrolling on smaller screens. -->
+    <meta name="viewport" content="width=950, initial-scale=1.0">
+    <title>Inventory Search</title>
+    <!-- SheetJS library for Excel parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* General Body and Container Styling */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #e0e7ff; /* Lighter, soft blue background */
+            color: #2c3e50; /* Darker text for contrast */
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top for better content flow */
+            min-height: 100vh; /* Ensure body takes full viewport height */
+        }
+
+        .container {
+            width: 100%; /* This will now be 100% of the 950px viewport */
+            max-width: 950px; /* Still useful for desktop browsers */
+            background-color: #ffffff;
+            padding: 2.5rem; /* Increased padding */
+            border-radius: 12px; /* More rounded corners */
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15); /* Stronger, softer shadow */
+            box-sizing: border-box; /* Include padding in width */
+        }
+
+        /* Views for switching between upload and search */
+        #file-selector-page, #main-app {
+            transition: opacity 0.4s ease-in-out; /* Slightly longer transition */
+        }
+        
+        #main-app {
+            display: none; /* Hidden by default */
+        }
+        
+        /* --- UPLOAD PAGE --- */
+        #file-selector-page h2 {
+            text-align: center;
+            color: #34495e; /* Darker heading color */
+            margin-bottom: 2.5rem; /* More space below heading */
+            font-size: 2rem; /* Larger heading */
+            font-weight: 700;
+        }
+        .file-upload-options {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem; /* Increased gap between options */
+        }
+        .file-upload-wrapper, .gdrive-link-wrapper {
+            border: 2px dashed #a7c5eb; /* Softer blue dashed border */
+            border-radius: 10px; /* Rounded corners */
+            padding: 2rem; /* More padding */
+            text-align: center;
+            cursor: pointer;
+            background-color: #f8faff; /* Very light blue background */
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+        }
+        .file-upload-wrapper:hover, .gdrive-link-wrapper:hover {
+            background-color: #eaf2ff; /* Lighter blue on hover */
+            border-color: #7da5d9; /* Darker blue border on hover */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Enhanced shadow on hover */
+        }
+        .file-upload-wrapper label {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #4a69bd; /* Blue label color */
+        }
+        #excel-file {
+            display: none;
+        }
+        #file-name {
+            margin-top: 1.2rem;
+            color: #6c7a89; /* Muted grey */
+            font-size: 0.95rem;
+            font-style: italic;
+        }
+        .gdrive-link-wrapper label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4a69bd;
+            display: block;
+            margin-bottom: 0.8rem;
+        }
+        .gdrive-link-wrapper input[type="text"] {
+            width: calc(100% - 24px); /* Adjust for padding */
+            padding: 0.8rem 12px; /* More padding */
+            margin-top: 0.5rem;
+            border: 1px solid #c0d9ed; /* Softer border */
+            border-radius: 8px; /* Rounded input */
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .gdrive-link-wrapper input[type="text"]:focus {
+            border-color: #4A55A2;
+            box-shadow: 0 0 0 3px rgba(74, 85, 162, 0.2); /* Focus ring effect */
+            outline: none;
+        }
+        .gdrive-link-wrapper button {
+            margin-top: 1.5rem; /* More space above button */
+            padding: 0.9rem 2rem; /* Larger button padding */
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: white;
+            background-color: #4A55A2; /* Purple/Blue button */
+            border: none;
+            border-radius: 8px; /* More rounded button */
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 10px rgba(74, 85, 162, 0.3); /* Button shadow */
+        }
+        .gdrive-link-wrapper button:hover {
+            background-color: #3f4a8a;
+            transform: translateY(-2px); /* Slight lift effect */
+            box-shadow: 0 6px 15px rgba(74, 85, 162, 0.4);
+        }
+        #gdrive-file-name {
+            margin-top: 0.8rem;
+            color: #6c7a89;
+            font-size: 0.95rem;
+            font-style: italic;
+        }
+
+        /* --- SEARCH INTERFACE --- */
+        .search-controls {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1.8rem; /* Increased gap */
+            align-items: flex-end;
+            margin-bottom: 2.5rem; /* More space below controls */
+            background-color: #f0f4f8; /* Lighter background for controls */
+            padding: 1.5rem; /* More padding */
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.05); /* Inner shadow */
+        }
+
+        .input-with-suggestions {
+            position: relative; /* For positioning suggestions list */
+        }
+        .input-with-suggestions label {
+            display: block;
+            font-weight: 600;
+            color: #4b4f56;
+            margin-bottom: 0.6rem;
+            font-size: 1rem;
+        }
+
+        #item-search {
+            width: 100%;
+            padding: 0.8rem 12px;
+            font-size: 1rem;
+            border: 1px solid #c0d9ed;
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        #item-search:focus {
+            border-color: #4A55A2;
+            box-shadow: 0 0 0 3px rgba(74, 85, 162, 0.2);
+            outline: none;
+        }
+
+        #suggestions-list {
+            position: absolute;
+            top: 100%; /* Position below the input */
+            left: 0;
+            right: 0;
+            background-color: #fff;
+            border: 1px solid #a7c5eb; /* Softer border */
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100; /* Ensure it's above other content */
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15); /* More prominent shadow */
+        }
+        #suggestions-list div {
+            padding: 0.8rem 12px;
+            cursor: pointer;
+            text-align: left;
+            border-bottom: 1px solid #e0e7ff; /* Lighter separator */
+            font-size: 0.95rem;
+            color: #34495e;
+            transition: background-color 0.2s ease;
+        }
+        #suggestions-list div:last-child {
+            border-bottom: none;
+        }
+        #suggestions-list div:hover,
+        #suggestions-list div.selected { /* For keyboard navigation */
+            background-color: #eaf2ff; /* Lighter blue on hover */
+        }
+        #suggestions-list:empty {
+            display: none; /* Hide if no suggestions */
+        }
+
+
+        #search-btn {
+            padding: 0.9rem 2.5rem; /* Larger button padding */
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: white;
+            background-color: #4A55A2; /* Purple/Blue button */
+            border: none;
+            border-radius: 8px; /* More rounded button */
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            height: fit-content; /* Adjust height to align with input */
+            align-self: flex-end; /* Align button to bottom */
+            box-shadow: 0 4px 10px rgba(74, 85, 162, 0.3); /* Button shadow */
+        }
+
+        #search-btn:hover {
+            background-color: #3f4a8a;
+            transform: translateY(-2px); /* Slight lift effect */
+            box-shadow: 0 6px 15px rgba(74, 85, 162, 0.4);
+        }
+        
+        /* --- RESULTS TABLE --- */
+        .results-container {
+            /* No direct background or shadow here, it's applied to individual tables */
+            overflow-x: auto;
+            padding-bottom: 1rem; /* Space below tables */
+        }
+
+        .batch-table-container {
+            margin-bottom: 2.5rem; /* Space between batch tables */
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* Shadow for each batch table */
+            background-color: #ffffff;
+            overflow: hidden; /* Ensures rounded corners apply to content */
+        }
+
+        .batch-title {
+            background-color: #dbe4f0; /* Light background for batch title */
+            color: #2c3e50;
+            padding: 1rem 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            margin-bottom: 0; /* Remove default margin */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            /* No border-radius here, applied to batch-table-container */
+        }
+
+        th, td {
+            padding: 1rem 1.2rem; /* More padding in cells */
+            text-align: left;
+            border: 1px solid #e0e7ff; /* Lighter border for cells */
+            font-size: 0.95rem;
+            color: #34495e;
+        }
+
+        thead th {
+            background-color: #e9f0f8; /* Very light header background, subtle difference from batch title */
+            color: #2c3e50; /* Darker header text */
+            font-weight: 700; /* Bolder header font */
+            text-transform: uppercase; /* Uppercase headers */
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+        }
+        /* Remove specific border-radius from table headers as it's on container */
+        thead th:first-child { border-top-left-radius: 0; }
+        thead th:last-child { border-top-right-radius: 0; }
+
+
+        tbody tr:nth-child(even) {
+            background-color: #f8faff; /* Subtle stripe effect */
+        }
+        tbody tr:hover {
+            background-color: #eaf2ff; /* Highlight row on hover */
+            transition: background-color 0.2s ease;
+        }
+        
+        /* Total Quantity Styling for individual batch tables */
+        .batch-table-container tfoot td {
+            font-weight: bold;
+            font-size: 1.15rem; /* Slightly larger total font */
+            padding: 1.2rem;
+        }
+
+        .batch-table-container .total-label {
+            background-color: #dbe4f0; /* Matches batch title background */
+            text-align: right;
+            border-bottom-left-radius: 10px; /* Rounded bottom left */
+        }
+
+        .batch-table-container .total-value {
+            background-color: #c8e6c9; /* Softer light green */
+            color: #2e7d32; /* Darker green text */
+            text-align: center;
+            border-bottom-right-radius: 10px; /* Rounded bottom right */
+        }
+
+        /* Grand Total Quantity Styling (at the very bottom) */
+        .grand-total-container {
+            margin-top: 3rem; /* Space above grand total */
+            padding: 1.5rem;
+            background-color: #4A55A2; /* Darker blue background */
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .grand-total-container span {
+            font-size: 1.8rem; /* Larger for the actual number */
+            color: #c8e6c9; /* Light green for the number */
+            margin-left: 1rem;
+        }
+
+
+        #error-message {
+            color: #e74c3c; /* Redder error message */
+            margin-top: 1.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="file-selector-page">
+            <h2>Inventory Search Tool</h2>
+            <div class="file-upload-options">
+                <div class="file-upload-wrapper" onclick="document.getElementById('excel-file').click();">
+                    <input type="file" id="excel-file" accept=".xlsx, .xls, .csv">
+                    <label for="excel-file">Click here to upload from your computer</label>
+                    <div id="file-name">No file selected</div>
+                </div>
+
+                <div class="gdrive-link-wrapper">
+                    <label for="gdrive-link">Or enter a Public Google Drive Direct Download Link:</label>
+                    <input type="text" id="gdrive-link" placeholder="e.g., https://docs.google.com/spreadsheets/d/.../export?format=xlsx">
+                    <button id="load-gdrive-btn">Load from Google Drive</button>
+                    <div id="gdrive-file-name" style="margin-top: 0.5rem; color: #606770; font-size: 0.9rem;"></div>
+                </div>
+            </div>
+            <div id="error-message" style="color: red; margin-top: 1rem; text-align:center;"></div>
+        </div>
+
+        <div id="main-app">
+            <div class="search-controls">
+                <div class="input-with-suggestions">
+                    <label for="item-search">Item Name</label>
+                    <input type="text" id="item-search" placeholder="Start typing an item name...">
+                    <div id="suggestions-list"></div>
+                </div>
+                <button id="search-btn">SEARCH</button>
+            </div>
+            
+            <div class="results-container">
+                <!-- Batch-specific tables will be inserted here by JavaScript -->
+            </div>
+
+            <!-- Grand Total Quantity for all batches combined -->
+            <div class="grand-total-container">
+                <span>Grand Total Quantity:</span>
+                <span id="grand-total-quantity">0</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+let excelData = [];
+let allItemNames = []; // To store unique item names for suggestions
+let currentFocus = -1; // For keyboard navigation in suggestions
+
+const fileInput = document.getElementById('excel-file');
+const fileNameDisplay = document.getElementById('file-name');
+const gdriveLinkInput = document.getElementById('gdrive-link');
+const loadGdriveBtn = document.getElementById('load-gdrive-btn');
+const gdriveFileNameDisplay = document.getElementById('gdrive-file-name');
+
+const fileSelectorPage = document.getElementById('file-selector-page');
+const mainAppPage = document.getElementById('main-app');
+
+const itemSearchInput = document.getElementById('item-search'); // New: Search Input
+const suggestionsList = document.getElementById('suggestions-list'); // New: Suggestions List
+const searchBtn = document.getElementById('search-btn');
+const resultsContainer = document.querySelector(".results-container"); // Changed to container
+const grandTotalQuantityCell = document.getElementById("grand-total-quantity"); // New: Grand total cell
+const errorMessage = document.getElementById('error-message');
+
+// Function to parse and process Excel data
+async function processExcelData(data) {
+    try {
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        excelData = XLSX.utils.sheet_to_json(worksheet, {
+            header: [
+                "Sr. No", "ITEM CODE", "ITEM NAME", "BATCH NUMBER",
+                "EXPIRY DATE", "COST", "GST", "TOTAL QUANTITY",
+                "TOTAL COST PRICE", "SALE PRICE"
+            ],
+            range: 6, // 0-indexed, so 6 corresponds to row 7 in Excel
+            defval: ""
+        });
+
+        if (excelData.length > 0) {
+            setupSearchInterface();
+            errorMessage.textContent = ''; // Clear any previous error
+        } else {
+            errorMessage.textContent = 'The Excel file is empty or could not be read.';
+        }
+    } catch (err) {
+        console.error("Error processing Excel data:", err);
+        errorMessage.textContent = 'Invalid file format or error reading file. Please check the browser console for details.';
+    }
+}
+
+// 1. Handle Local File Upload
+fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    fileNameDisplay.textContent = file.name;
+    gdriveFileNameDisplay.textContent = ''; // Clear GDrive display
+    gdriveLinkInput.value = ''; // Clear GDrive link
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        await processExcelData(e.target.result);
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+// 2. Handle Google Drive Link Load
+loadGdriveBtn.addEventListener('click', async () => {
+    const gdriveLink = gdriveLinkInput.value.trim();
+    if (!gdriveLink) {
+        errorMessage.textContent = 'Please enter a Google Drive direct download link.';
+        return;
+    }
+
+    fileNameDisplay.textContent = ''; // Clear local file display
+    gdriveFileNameDisplay.textContent = 'Loading from Drive...';
+    errorMessage.textContent = ''; // Clear previous errors
+
+    try {
+        const response = await fetch(gdriveLink);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        gdriveFileNameDisplay.textContent = `Loaded from link`; // Can't get actual file name easily
+
+        await processExcelData(arrayBuffer);
+    } catch (err) {
+        console.error("Error fetching Google Drive file:", err);
+        errorMessage.textContent = 'Failed to load file from Google Drive link. Ensure it is a direct download link and publicly accessible.';
+        gdriveFileNameDisplay.textContent = '';
+    }
+});
+
+// 3. Setup the Search UI after file load
+function setupSearchInterface() {
+    // Get unique item names, filter out any empty ones, and sort them
+    // Use 'ITEM NAME' as per your Excel column header
+    allItemNames = [...new Set(excelData.map(row => row['ITEM NAME']).filter(name => name))].sort();
+    
+    // Clear search input and suggestions
+    itemSearchInput.value = '';
+    suggestionsList.innerHTML = '';
+
+    // Switch from upload view to search view
+    fileSelectorPage.style.display = 'none';
+    mainAppPage.style.display = 'block';
+}
+
+// 4. Handle Search Input for Suggestions
+itemSearchInput.addEventListener('input', () => {
+    const searchText = itemSearchInput.value.toLowerCase();
+    suggestionsList.innerHTML = ''; // Clear previous suggestions
+    currentFocus = -1; // Reset focus for new input
+
+    if (searchText.length === 0) {
+        return;
+    }
+
+    const filteredSuggestions = allItemNames.filter(name => 
+        name.toLowerCase().includes(searchText)
+    );
+
+    filteredSuggestions.forEach((name, index) => {
+        const div = document.createElement('div');
+        div.textContent = name;
+        div.addEventListener('click', () => {
+            itemSearchInput.value = name;
+            suggestionsList.innerHTML = ''; // Clear suggestions on selection
+            currentFocus = -1;
+            searchBtn.click(); // Automatically trigger search
+        });
+        suggestionsList.appendChild(div);
+    });
+});
+
+// 5. Keyboard Navigation for Suggestions
+itemSearchInput.addEventListener('keydown', (e) => {
+    const items = suggestionsList.getElementsByTagName('div');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+        currentFocus++;
+        if (currentFocus >= items.length) currentFocus = 0;
+        setActive(items);
+        e.preventDefault(); // Prevent cursor movement in input
+    } else if (e.key === 'ArrowUp') {
+        currentFocus--;
+        if (currentFocus < 0) currentFocus = items.length - 1;
+        setActive(items);
+        e.preventDefault(); // Prevent cursor movement in input
+    } else if (e.key === 'Enter') {
+        e.preventDefault(); // Prevent form submission if exists
+        if (currentFocus > -1) {
+            items[currentFocus].click(); // Simulate click on active item
+        } else {
+            searchBtn.click(); // If no suggestion is selected, perform regular search
+        }
+    } else if (e.key === 'Escape') {
+        suggestionsList.innerHTML = '';
+        currentFocus = -1;
+    }
+});
+
+function setActive(items) {
+    // Remove active class from all items
+    for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove('selected');
+    }
+    // Add active class to current focused item
+    if (currentFocus > -1 && items[currentFocus]) {
+        items[currentFocus].classList.add('selected');
+        // Optional: scroll into view
+        items[currentFocus].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+}
+
+// 6. Close suggestions when clicking outside
+document.addEventListener('click', (e) => {
+    if (!itemSearchInput.contains(e.target) && !suggestionsList.contains(e.target)) {
+        suggestionsList.innerHTML = '';
+        currentFocus = -1;
+    }
+});
+
+
+// 7. Handle Search Button Click
+searchBtn.addEventListener('click', () => {
+    const selectedItem = itemSearchInput.value.trim(); // Use value from search input
+    
+    // Clear previous results
+    resultsContainer.innerHTML = ''; // Clear the entire results container
+    grandTotalQuantityCell.textContent = '0'; // Reset grand total
+    suggestionsList.innerHTML = ''; // Hide suggestions after search
+
+    if (!selectedItem) {
+        errorMessage.textContent = 'Please select or type an item name to search.';
+        return; 
+    }
+    errorMessage.textContent = ''; // Clear previous error messages
+
+    // Filter data based on selection using 'ITEM NAME'
+    const filteredData = excelData.filter(row => row['ITEM NAME'] && row['ITEM NAME'].toLowerCase() === selectedItem.toLowerCase());
+    
+    // Display the filtered results
+    displayResults(filteredData);
+});
+
+// 8. Display results in separate tables by Batch and calculate total
+function displayResults(data) {
+    resultsContainer.innerHTML = ''; // Clear previous results
+    grandTotalQuantityCell.textContent = '0'; // Reset grand total
+
+    if (data.length === 0) {
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.style.textAlign = 'center';
+        noResultsDiv.style.color = '#555';
+        noResultsDiv.style.marginTop = '2rem';
+        noResultsDiv.style.fontSize = '1.1rem';
+        noResultsDiv.textContent = 'No results found for this item.';
+        resultsContainer.appendChild(noResultsDiv);
+        return;
+    }
+
+    // Group data by Batch Number
+    const groupedByBatch = data.reduce((acc, row) => {
+        const batch = row['BATCH NUMBER'] || 'N/A Batch'; // Handle empty batch numbers
+        if (!acc[batch]) {
+            acc[batch] = [];
+        }
+        acc[batch].push(row);
+        return acc;
+    }, {});
+
+    let grandTotalQuantity = 0;
+
+    // Iterate over each batch to create a separate table
+    for (const batch of Object.keys(groupedByBatch).sort()) { // Sort batches for consistent order
+        const batchData = groupedByBatch[batch];
+        let batchTotalQuantity = 0;
+        let serialNumber = 1;
+
+        const batchTableContainer = document.createElement('div');
+        batchTableContainer.classList.add('batch-table-container');
+
+        const batchTitle = document.createElement('h3');
+        batchTitle.classList.add('batch-title');
+        batchTitle.textContent = `Batch: ${batch}`;
+        batchTableContainer.appendChild(batchTitle);
+
+        const table = document.createElement('table');
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>Item Name</th>
+                    <th>Item Code</th>
+                    <th>Batch</th>
+                    <th>Quantity</th>
+                    <th>Expiry</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" class="total-label">Total Quantity for Batch ${batch}:</td>
+                    <td colspan="2" class="total-value">0</td>
+                </tr>
+            </tfoot>
+        `;
+        const resultsBody = table.querySelector('tbody');
+        const batchTotalQuantityCell = table.querySelector('tfoot .total-value');
+
+        // Sort data within each batch (e.g., by Expiry Date)
+        batchData.sort((a, b) => {
+            const expiryA = a['EXPIRY DATE'] instanceof Date ? a['EXPIRY DATE'].getTime() : 0;
+            const expiryB = b['EXPIRY DATE'] instanceof Date ? b['EXPIRY DATE'].getTime() : 0;
+            return expiryA - expiryB;
+        });
+
+        batchData.forEach(row => {
+            const tr = document.createElement('tr');
+            
+            let expiryDate = row['EXPIRY DATE'];
+            if (expiryDate instanceof Date) {
+                const day = String(expiryDate.getDate()).padStart(2, '0');
+                const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+                const year = expiryDate.getFullYear();
+                expiryDate = `${day}/${month}/${year}`;
+            } else if (typeof expiryDate === 'string' && expiryDate.includes('-') && !isNaN(new Date(expiryDate))) {
+                const parsedDate = new Date(expiryDate);
+                if (!isNaN(parsedDate)) {
+                    const day = String(parsedDate.getDate()).padStart(2, '0');
+                    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                    const year = parsedDate.getFullYear();
+                    expiryDate = `${day}/${month}/${year}`;
+                }
+            }
+
+            tr.innerHTML = `
+                <td>${serialNumber++}</td>
+                <td>${row['ITEM NAME'] || ''}</td>
+                <td>${row['ITEM CODE'] || ''}</td>
+                <td>${row['BATCH NUMBER'] || ''}</td>
+                <td>${row['TOTAL QUANTITY'] || 0}</td>
+                <td>${expiryDate || ''}</td>
+            `;
+            resultsBody.appendChild(tr);
+
+            batchTotalQuantity += Number(row['TOTAL QUANTITY'] || 0);
+        });
+
+        batchTotalQuantityCell.textContent = batchTotalQuantity;
+        grandTotalQuantity += batchTotalQuantity; // Add to grand total
+
+        batchTableContainer.appendChild(table);
+        resultsContainer.appendChild(batchTableContainer);
+    }
+
+    // Update the grand total quantity display at the very bottom
+    grandTotalQuantityCell.textContent = grandTotalQuantity;
+}
+</script>
+
+</body>
+</html>
